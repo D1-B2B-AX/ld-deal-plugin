@@ -89,7 +89,7 @@ def parse_date(s) -> date | None:
     5/6 fix — KST 자정 패턴 (15:00 UTC) 인식. 한국 영업 맥락에서 *"5/28까지 마감"* 입력은
     DB에 5/28 15:00 UTC (= KST 5/29 0시)로 저장됨. 단순 KST 변환 시 5/29로 표시되는데
     영업 맥락 정합은 5/28. 즉 15:00 UTC인 경우 *전날 date* (UTC date 그대로) 사용.
-    신세계 5/31 00:00 UTC 같은 *KST 09:00 패턴*은 일반 KST 변환 적용.
+    5/31 00:00 UTC 같은 *KST 09:00 패턴*은 일반 KST 변환 적용.
     """
     if not s:
         return None

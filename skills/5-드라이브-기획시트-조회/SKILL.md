@@ -65,9 +65,9 @@ STEP 6: LLM 파싱 — 타입별 차등 항목 추출
 세일즈맵 딜명 ↔ 드라이브 파일명이 **다를 수 있음.**
 
 **실제 케이스 예시:**
-- 세일즈맵: `현대카드_PM/서비스 기획자 대상 교육`
-- 드라이브: `패스트캠퍼스_교육견적서_현대카드_프로덕트1팀_Figma 교육`
-- 공통: 고객사명 "현대카드"만 일치, 과정 상세 다름
+- 세일즈맵: `○○사_PM/서비스 기획자 대상 교육`
+- 드라이브: `패스트캠퍼스_교육견적서_○○사_프로덕트1팀_Figma 교육`
+- 공통: 고객사명 "○○사"만 일치, 과정 상세 다름
 
 **매칭 로직:**
 
@@ -195,14 +195,14 @@ STEP 6: LLM 파싱 — 타입별 차등 항목 추출
 ```json
 {
   "planning_sheet": {
-    "file_name": "패스트캠퍼스_교육견적서_현대카드_프로덕트1팀_Figma 교육",
+    "file_name": "패스트캠퍼스_교육견적서_○○사_프로덕트1팀_Figma 교육",
     "link": "https://docs.google.com/...",
     "type": "견적서",
     "tab_read": "견적(260303)",
     "parsed": {
       "quote_amount": "8천만원 (VAT 별도, 30명)",
       "education_schedule": "3월 마지막 주",
-      "deal_context": "현대카드 프로덕트 1팀 대상 Figma 교육",
+      "deal_context": "○○사 프로덕트 1팀 대상 Figma 교육",
       "key_requirements": null,
       "competitor_situation": null,
       "decision_process": null,

@@ -98,7 +98,7 @@ STEP 5: 딜별 JSON 구조화
 
 → 두 영역 모두 STEP 1·2·2.5·2.6의 검색·확장·메타 추출 룰 동일 적용. **윈도우만 다름**.
 
-**왜 분리?** 영업 사이클은 보통 3~6개월. 14일 윈도우만으론 *lead 배분 thread root*가 누락 (예: 신세계 4/1 thread는 5/6 시점 36일 전). 6번 거래 의지 LLM이 *진짜 raw* 보고 정확한 카테고리 판단 가능하게.
+**왜 분리?** 영업 사이클은 보통 3~6개월. 14일 윈도우만으론 *lead 배분 thread root*가 누락 (예: 일부 thread는 5/6 시점 30일+ 전). 6번 거래 의지 LLM이 *진짜 raw* 보고 정확한 카테고리 판단 가능하게.
 
 **점수 룩룩 영향 X** — 5번 점수는 14일 그대로. 2026년부터 raw는 *6번 LLM 입력에만* 사용.
 
@@ -190,7 +190,7 @@ for 각 hit 메시지 (thread expansion 후 최종 raw):
 - raw에 "슬랙에 견적서 첨부 N건 발견 (yyyy-mm-dd, 작성자: LD)" 시그널 노출
 - 견적시트 드라이브에 없을 때 *백업 시그널*로 활용 (5번 두 축 보조)
 
-**검증 사례** (지멘스 thread 4/9 lead 배분 reply 4):
+**검증 사례** (lead 배분 thread reply 4건):
 - `Files: image.png (ID: F0AU16LDA9H, image/png, 129.9 KB)` 박힘 — 슬랙 read API에서 자동 회수
 - 즉 별도 도구 없이 메타데이터 즉시 잡힘
 
@@ -212,9 +212,9 @@ for 각 hit 메시지:
   중복 제거: 동일 message_ts 1건으로 처리
 ```
 
-**왜 필요한가** (4/30 지멘스 사고 — 5/6 발견·차단):
-- 4/9 권노을(파트장)이 `#b2b_2팀_견적제안`에서 thread root로 lead 배분 → "지멘스" 키워드 + @(target_ld) 둘 다 박힘
-- 4/21 (target_ld)(LD)이 reply 2개로 *커리큘럼 작업·강사 확인 활동* — reply 본문엔 "지멘스" 키워드 없음
+**왜 필요한가** (4/30 reply 누락 사고 — 5/6 발견·차단):
+- 4/9 파트장이 `#b2b_2팀_견적제안`에서 thread root로 lead 배분 → 회사명 키워드 + @(target_ld) 둘 다 박힘
+- 4/21 (target_ld)(LD)이 reply 2개로 *커리큘럼 작업·강사 확인 활동* — reply 본문엔 회사명 키워드 없음
 - → base 쿼리만으론 reply 누락 → 6번 거래 의지 LLM이 "lead 배분 후 우선 대기" raw만 봄 → **딜 진척도 잘못 판단**
 - **STEP 2.5 적용 후**: thread 전체 read → reply 4·5번까지 raw 포함 → "4/21 커리큘럼·강사 작업 진행 중" 정확 반영
 
@@ -265,12 +265,12 @@ B2B 영업팀 슬랙 운영 패턴:
 3. **확장 단계에서**: hit한 root·reply 모두 thread 전체 read 필수 (STEP 2.5)
 4. **출력 단계에서**: thread reply에는 `from_lead_thread=true` 부착 → 6번 LLM이 *lead 배분 thread임을 인지하고 reply만으로도 활동량 측정*
 
-### 검증 사례 — 지멘스 4/21 (4/30 발견 → 5/6 차단)
+### 검증 사례 — Reply 누락 사고 (4/30 발견 → 5/6 차단)
 
 | 항목 | 4/30 검증 (보강 전) | 5/6 차단 (보강 후) |
 |---|---|---|
-| Thread root | 4/9 16:43 권노을 lead 배분 | hit ✅ |
-| Reply 1·2·3 (4/9~10 권노을 후속) | hit X | thread expansion으로 잡힘 |
+| Thread root | 4/9 16:43 파트장 lead 배분 | hit ✅ |
+| Reply 1·2·3 (4/9~10 파트장 후속) | hit X | thread expansion으로 잡힘 |
 | **Reply 4·5 (4/21 (target_ld) 커리큘럼·강사)** | **❌ 누락** | **✅ thread expansion으로 잡힘** |
 | 6번 거래 의지 raw | "lead 배분 후 우선 대기"만 | "+ 4/21 커리큘럼 작업·강사 확인 진행 중" 추가 |
 | 거래 진척도 판단 | 정체 | 진행 중 |
@@ -385,7 +385,7 @@ B2B 영업팀 슬랙 운영 패턴:
 | DM 차단 (5/6 갱신) | **DM(`im`·`mpim`) 자동 차단** — 답지·내부 메모 누출 위험 (4/30 사고). OM → LD DM의 딜 업데이트는 추후 v2 영역에서 *별도 채널 추출 도구*로 안전 회수 검토. |
 | 비공개 채널 | 멤버인 경우만 가능 |
 | 검색 횟수 | base 1회 + lead-root 보강 1~2회 + thread expansion (hit thread당 1회) — 총 가변 |
-| **Lead 배분 패턴** | 팀장·파트장 root + LD reply 패턴. thread 전체 read 필수 (회사명 단독 검색은 reply 누락). 지멘스 4/21 사고 5/6 차단. |
+| **Lead 배분 패턴** | 팀장·파트장 root + LD reply 패턴. thread 전체 read 필수 (회사명 단독 검색은 reply 누락). 4/21 reply 누락 사고 5/6 차단. |
 | **Thread expansion 비용** | hit thread 수에 비례한 호출. base 검색 결과가 N건이면 최대 N회 호출 (reply 없는 단독 메시지는 skip). |
 
 ## LD 체크 포인트
