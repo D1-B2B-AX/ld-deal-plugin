@@ -373,8 +373,13 @@ def render_t1_full(deal: dict, rank: int, today: date) -> list[str]:
     lines.append(header)
     lines.append("")
 
-    # A. 왜 T1? — 카테고리 + 근거 한 줄 (옵션 3, 빌더 용어 X)
+    # A. 왜 T1? — 헤드라인(통찰) + 메타 + 데이터 근거 (5/6 갱신)
     lines.append("**A. 왜 T1?**")
+    # 헤드라인 (한 줄 통찰) — 5/6 신규
+    headline = deal.get("reason_headline")
+    if headline:
+        lines.append(f"- 🎯 **{headline.strip()}**")
+    # 메타 한 줄 (D-day·마감 출처·시그널·grounding)
     why_parts = []
     if dday:
         why_parts.append(dday)
@@ -390,7 +395,7 @@ def render_t1_full(deal: dict, rank: int, today: date) -> list[str]:
         why_parts.append("⚠️ LD 추정과 LLM 분석 불일치 — 검토 권장")
     if why_parts:
         lines.append("- " + " · ".join(why_parts))
-    # reason (LLM 결과)
+    # 데이터 근거 (LLM 결과)
     reason_lines = [l for l in reason.split("\n") if l.strip()][:3]
     for rl in reason_lines:
         lines.append(f"- {rl}")
