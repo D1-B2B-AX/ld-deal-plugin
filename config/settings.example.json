@@ -1,0 +1,134 @@
+{
+  "_comment_target_ld": "분석 대상 LD 정보 — 설치 후 반드시 실값으로 수정. 4/29 anchor: 7기준 + target_ld 단일 LD.",
+  "target_ld": {
+    "name": "홍길동",
+    "email": "your-email@day1company.co.kr",
+    "team": "교육2팀",
+    "slack_user_id": "U00000000",
+    "calendar_id": "your-email@day1company.co.kr"
+  },
+
+  "_comment_test_mode": "테스트 단계 — 사용자 본인 계정으로 target_ld 데이터 추적 가정. 운영 전환(target_ld 본인 인증) 시 false.",
+  "test_mode": {
+    "enabled": false,
+    "note": "이 키는 문서 메타. 실제 인증·접근은 Claude Code MCP가 처리하며 코드 분기에 영향 X. 운영자가 인증 주체를 인지하기 위한 표시."
+  },
+
+  "_comment_data_sources": "5소스 — salesmap(출발점) + slack(메인) + drive + gmail + calendar. 4/22 동등 원칙.",
+  "data_sources": {
+    "_comment_salesmap": "본부장 대시보드 DB — 매일 새벽 3시 갱신, 수동 다운로드 (메모리 reference_salesmap_db).",
+    "salesmap_db_path": "~/salesmap/salesmap_latest.db",
+    "salesmap_download_url": "https://github.com/sabinanfranz/data_analysis_ai/releases/download/salesmap-db-latest/salesmap_latest.db",
+
+    "_comment_slack": "2팀 견적제안·제안노트 2채널 (4/29 결정 — 슬랙 메인 데이터). 추가 채널은 conditional 영역에서 확장.",
+    "slack_channels": [
+      "b2b_2팀_견적제안",
+      "b2b_2팀_제안노트"
+    ],
+    "slack_conditional_channels": {
+      "_comment": "고객사명 키워드 매칭 시 추가 조회. 예: 삼성 그룹 딜이면 b2b_삼성전자 채널 함께 조회.",
+      "삼성": ["b2b_삼성전자"]
+    },
+
+    "_comment_gmail": "2팀 공용 라벨. target_ld 개인 메일은 자동 인증을 통해 함께 추적됨.",
+    "gmail_labels": ["B2b_2팀메일"],
+    "_comment_email_window": "5/6 신규 — 메일 검색 시점 한정 룰. window_days(default 14)는 모든 모드 적용. after_date는 *test 모드 한정* (라벨 검색 시 가입 전 메일 차단). deploy 모드(target_ld 본인 메일함)에선 null로 두면 자동 무시 — 본인 메일함이라 가입일 개념 없음.",
+    "email_search_window_days": 14,
+    "email_after_date": null,
+
+    "_comment_drive": "1.[Sales] 영역의 미팅·견적·제안 3폴더 ID. 폴더 URL의 /folders/<ID> 부분에서 추출.",
+    "drive_folders": {
+      "sales_meeting":  "REPLACE_WITH_FOLDER_ID_FOR_미팅",
+      "sales_quote":    "REPLACE_WITH_FOLDER_ID_FOR_견적",
+      "sales_proposal": "REPLACE_WITH_FOLDER_ID_FOR_제안"
+    },
+    "_comment_drive_rules": "기획시트는 미팅·제안 양쪽 검색 / 견적시트는 견적 폴더만. 검색 키워드는 기업명·LD명·딜명 (4/30 사용자 결정).",
+    "drive_search_rules": {
+      "quote_sheet_folders": ["sales_quote"],
+      "plan_sheet_folders":  ["sales_meeting", "sales_proposal"],
+      "search_keyword_keys": ["company_name", "ld_name", "deal_name"]
+    },
+    "_comment_quote_extract": "견적시트는 최종 탭의 날짜·net·총액만 추출 (토큰 절약, 4/29 노을님 결정).",
+    "quote_sheet_extract": ["last_modified_date", "net", "total"],
+
+    "_comment_salesmap_extract": "세일즈맵 deal 테이블에서 각 점수의 정보원 매핑 (4/30 (target_ld) 실데이터 검증 기반).",
+    "salesmap_extract_fields": {
+      "_comment_amount": "1번 딜 금액 — 예상 체결액(100% 채움)이 1차. 금액 컬럼은 6%만 채움이라 폐기.",
+      "amount_field": "예상 체결액",
+      "amount_secondary": "Net(%)",
+
+      "_comment_deadline": "3번 마감 임박도 — 3단계 트리. 제안서 마감일(0%, 향후 활용) → 수주 예정일(100%, 백업) → LLM raw 추출(실시간 보강).",
+      "deadline_priority": ["제안서 마감일", "수주 예정일"],
+      "deadline_extract_from_text": true,
+      "deadline_keywords": ["제출 마감", "전달 마감", "전달 예정", "납기", "마감일", "deadline"],
+
+      "_comment_intent_grounding": "6번 거래 의지 — LD가 직접 입력한 성사 가능성을 LLM 결과와 비교 검증.",
+      "intent_grounding_field": "성사 가능성",
+      "intent_grounding_enum": ["확정", "높음", "낮음", "LOST"]
+    },
+
+    "_comment_memo_table": "memo 테이블 — 4/30 신규 발견. 텍스트 raw 보조 메인 (딜당 평균 3.3개 × 418자).",
+    "memo_table": {
+      "enabled": true,
+      "join_field": "dealId",
+      "text_field": "text",
+      "html_field": "htmlBody",
+      "type_field": "유형"
+    }
+  },
+
+  "_comment_scoring": "7기준 만점 170 + 카테고리 그룹화 + 액티브 게이트 (4/29 빌더 결정 — 옵션 B 메인 30·30).",
+  "scoring": {
+    "max_score": 170,
+    "t1_threshold": 87,
+    "t2_threshold": 55,
+    "_comment_active_gate": "두 조건 AND — 단계 + 성사 가능성 ∉ intent_grounding_exclude (4/30 EOD 갱신, LOST·확정/Won 둘 다 차단).",
+    "active_gate_stage_min": "Proposal 준비",
+    "active_gate_exclude_lost": true,
+    "_comment_grounding_exclude": "액티브 게이트 차단 enum 리스트. 4/30 EOD 추가: 확정(Won) 차단 — 수주 후 운영 단계는 우선순위 판단 영역 X.",
+    "intent_grounding_exclude": ["LOST", "확정"],
+    "_comment_weights": "메인 2개 (1번·6번) = 30점 / 서브 5개 = 18~27점. 합계 170점.",
+    "criteria_weights": {
+      "1_deal_amount":     30,
+      "2_pipeline_stage":  18,
+      "3_deadline":        22,
+      "4_customer_value":  23,
+      "5_communication":   27,
+      "6_deal_intent":     30,
+      "7_deal_origin":     20
+    },
+    "_comment_strategic": "4번 고객가치 ② 규모·지명도(2점) 시그널 — 메이저 그룹사·금융·플랫폼 substring 매칭. 5/6 갱신: 그룹 prefix(삼성·현대·SK·LG 등)로 단축해 계열사 자동 hit + 한글 변종(에스케이·엘지·케이티·씨제이 등) 추가 (DB customer_name이 한글로 박혀있어 한글 변종 필수). 4/30 EOD에 추가했던 한화·신세계·롯데·CJ 외 포스코·GS·두산도 prefix로 박음.",
+    "strategic_keywords": [
+      "삼성",
+      "현대",
+      "SK", "에스케이",
+      "LG", "엘지",
+      "한화",
+      "롯데",
+      "CJ", "씨제이",
+      "신세계",
+      "포스코", "POSCO",
+      "GS", "지에스",
+      "두산",
+      "에스원",
+      "KT", "케이티",
+      "카카오",
+      "네이버",
+
+      "하나금융", "하나은행", "하나카드", "하나증권", "하나생명", "하나캐피탈",
+      "우리금융", "우리은행", "우리카드", "우리캐피탈",
+      "NH농협", "농협",
+      "KB국민", "KB증권", "KB라이프", "KB금융", "KB카드",
+      "케이비국민", "케이비증권", "케이비라이프", "케이비금융", "케이비카드",
+      "신한금융", "신한은행", "신한카드", "신한라이프", "신한투자"
+    ],
+    "new_deal_days": 7
+  },
+
+  "_comment_report": "리포트 출력·보관 설정.",
+  "report": {
+    "output_dir": "outputs",
+    "archive_dir": "archive",
+    "retention_days": 14
+  }
+}
