@@ -401,11 +401,11 @@ def render_t1_full(deal: dict, rank: int, today: date) -> list[str]:
         lines.append(f"- {rl}")
     lines.append("")
 
-    # B. 추천 액션
-    lines.append("**B. 추천 액션:**")
+    # B. 추천 액션 (5/6 — ⚡ 이모지로 시각 강조)
+    lines.append("**B. ⚡ 추천 액션:**")
     next_lines = [l for l in next_action.split("\n") if l.strip()][:3]
     for nl in next_lines:
-        lines.append(f"- {nl}")
+        lines.append(f"- ⚡ {nl}")
     lines.append("")
 
     # C. 점수 표 (메인/서브 시각 분리)
