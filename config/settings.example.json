@@ -35,6 +35,9 @@
     "_comment_email_window": "5/6 신규 — 메일 검색 시점 한정 룰. window_days(default 14)는 모든 모드 적용. after_date는 *test 모드 한정* (라벨 검색 시 가입 전 메일 차단). deploy 모드(target_ld 본인 메일함)에선 null로 두면 자동 무시 — 본인 메일함이라 가입일 개념 없음.",
     "email_search_window_days": 14,
     "email_after_date": null,
+    "_comment_slack_search_windows": "5/6 신규 (파트장 제안 옵션 A) — 두 영역 분리. 5번 소통 점수는 slack_recent_window_days(default 14) — 최근 활동 평가. 6번 거래 의지 LLM raw는 slack_intent_search_after — 영업 사이클 인지 (lead 배분 thread root 회수). 점수 룩룩 영향 X + 결과물 풍부도 향상.",
+    "slack_recent_window_days": 14,
+    "slack_intent_search_after": "2026-01-01",
 
     "_comment_drive": "1.[Sales] 영역의 미팅·견적·제안 3폴더 ID. 폴더 URL의 /folders/<ID> 부분에서 추출.",
     "drive_folders": {

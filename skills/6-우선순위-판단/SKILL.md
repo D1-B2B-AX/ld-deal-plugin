@@ -23,9 +23,15 @@
 |---|---|---|
 | 스킬 1 (세일즈맵) | 딜 기본 정보 (`예상 체결액`·`수주 예정일`·`성사 가능성` 등) + memo 테이블 | **출발점** |
 | 스킬 2 (캘린더) | 딜 관련 일정 | 보조 |
-| **스킬 3 (슬랙)** | 14일 thread + 활동 빈도 | **텍스트 raw 메인** |
+| **스킬 3 (슬랙) 14일** | `slack_results` — 최근 thread + 활동 빈도 | 5번 소통 점수 |
+| **스킬 3 (슬랙) 2026-01-01부터** ⭐ 5/6 신규 | `slack_results_lead_history` — lead 배분 thread root 포함 영업 사이클 raw | **6번 거래 의지 LLM raw 메인** |
 | 스킬 4 (지메일) | 2팀 공용 라벨 메일 | 보조 |
 | 스킬 5 (드라이브) | 견적서 (최종 탭 net·총액·갱신일) + 기획문서 | 보조 (견적서=숫자 시그널) |
+
+**5/6 신규 — 슬랙 두 영역 분리** (파트장 제안 옵션 A):
+- 5번 소통 점수 영역과 6번 거래 의지 LLM raw 영역의 *윈도우 다름*
+- 신세계 4/1 lead thread (5/6 기준 36일 전) 같은 영역이 14일 윈도우엔 누락 → 6번 LLM이 *최근 정체*만 보고 mid 판정 → 옵션 C로 흡수되지만 *진짜 raw 보고 정밀 판단* 가치 있음
+- `slack_results_lead_history`는 **STEP 1 LLM raw 입력에 필수 포함** (아래 STEP 1 설명 참조)
 
 ## 처리 흐름 (4 STEP)
 
@@ -47,12 +53,19 @@ STEP 4 [LLM 2번]: reason + next_action 일괄 생성 (티어별 톤)
 
 ## STEP 1: LLM 1번 — 거래 의지 + 마감 추출 (per deal)
 
-### 입력 텍스트 결합 (deal별)
+### 입력 텍스트 결합 (deal별, 5/6 갱신 — lead_history 추가)
 
 ```
-combined_raw = slack_raw + "\n---memo---\n" + memo_text
-# memo_text = memo 테이블에서 dealId 매칭 모든 메모의 text 컬럼 결합
+combined_raw = (
+    slack_raw                                       # 14일 최근 활동
+    + "\n---slack_lead_history---\n"
+    + slack_lead_history_raw                        # ⭐ 5/6 신규: 2026-01-01부터 lead 배분 thread (영업 사이클 raw)
+    + "\n---memo---\n"
+    + memo_text                                     # memo 테이블 dealId 매칭 텍스트 결합
+)
 ```
+
+**왜 lead_history 별도 영역?** — 5번 소통 점수와 6번 거래 의지 LLM 영역 분리 (스킬 3 STEP 1 영역 분리 참조). 신세계 4/1 lead thread 같은 *영업 사이클 시작 시점* raw가 14일 윈도우엔 누락. 6번 LLM이 *진짜 적극도 판단* 가능하게 lead_history를 명시 입력으로 박음.
 
 ### 결손 매트릭스 ④ — raw 부족 시 LLM skip
 

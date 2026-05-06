@@ -49,7 +49,9 @@ SKILL_FIELDS = {
         "slack_summary",
         "activity_flag",
         "slack_thread_count_14d",
-        "slack_attachments",  # 5/6 신규 — 견적서 첨부 사실 시그널 (본문 X)
+        "slack_attachments",                # 5/6 신규 — 견적서 첨부 사실 시그널 (본문 X)
+        "slack_results_lead_history",       # 5/6 신규 — 2026-01-01부터 lead 배분 thread (6번 거래 의지 LLM raw용)
+        "slack_lead_history_summary",       # 5/6 신규 — lead history 요약 (영업 사이클 흐름)
     ],
     "skill4": [
         "email_results",

@@ -86,6 +86,10 @@ def parse_date(s) -> date | None:
 
     DB는 UTC ISO 형식으로 저장 ('2026-05-28T15:00:00.000Z' 등). KST(+9h) 변환 후 date 추출.
     4/30 EOD fix — 이전 UTC date 추출로 모든 7건 답지 대비 -1일 시프트 발견.
+    5/6 fix — KST 자정 패턴 (15:00 UTC) 인식. 한국 영업 맥락에서 *"5/28까지 마감"* 입력은
+    DB에 5/28 15:00 UTC (= KST 5/29 0시)로 저장됨. 단순 KST 변환 시 5/29로 표시되는데
+    영업 맥락 정합은 5/28. 즉 15:00 UTC인 경우 *전날 date* (UTC date 그대로) 사용.
+    신세계 5/31 00:00 UTC 같은 *KST 09:00 패턴*은 일반 KST 변환 적용.
     """
     if not s:
         return None
@@ -96,6 +100,10 @@ def parse_date(s) -> date | None:
         if dt.tzinfo is None:
             # naive datetime은 UTC로 가정 (DB 저장 형식 기준)
             dt = dt.replace(tzinfo=timezone.utc)
+        # KST 자정 패턴 인식 (5/6 신규)
+        utc_dt = dt.astimezone(timezone.utc)
+        if utc_dt.hour == 15 and utc_dt.minute == 0:
+            return utc_dt.date()  # 전날 date (영업 맥락 정합)
         return dt.astimezone(KST).date()
     except (ValueError, TypeError):
         pass
