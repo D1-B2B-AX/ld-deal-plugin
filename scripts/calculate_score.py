@@ -585,8 +585,15 @@ CRITERIA_LABELS = {
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="ld-deal-plugin 스코어링 (4/30 v1)")
-    parser.add_argument("input", help="딜 JSON 경로 (또는 '-' for stdin)")
+    parser = argparse.ArgumentParser(description="ld-deal-plugin 스코어링 (4/30 v1, 5/7 default 갱신)")
+    # 5/7 — input 인자 optional 변환 + default를 phase2_enriched.json (PHASE 2.5a 결과) 강제
+    # 이전엔 input 안 박히면 에러였고, merge_deals.py가 폐기되면서 PHASE 3 input은 *phase2_enriched.json만* 정합.
+    parser.add_argument(
+        "input",
+        nargs="?",
+        default="runtime/phase2_enriched.json",
+        help="딜 JSON 경로 (default: runtime/phase2_enriched.json — PHASE 2.5a 결과). '-'면 stdin.",
+    )
     parser.add_argument("--settings", default=None, help="settings.json 경로 (선택)")
     parser.add_argument("--reset-log", action="store_true", help="실행 전 _validation_log.json 비우기")
     args = parser.parse_args()
@@ -600,11 +607,17 @@ def main() -> int:
     # Phase 0 — today anchor
     log_gate("phase3", "pass", {"kind": "today_anchor", "today": str(today)})
 
-    # 입력 로드
+    # 입력 로드 (5/7 정정 — phase2_enriched.json 강제 fallback)
     import json as _json
     if args.input == "-":
         deals = _json.load(sys.stdin)
     else:
+        # phase2_enriched.json이 없으면 phase2_active_deals.json fallback + warn (raw 누락 위험)
+        if not Path(args.input).exists():
+            fallback = "runtime/phase2_active_deals.json"
+            if Path(fallback).exists():
+                print(f"[warn] {args.input} 없음 — fallback {fallback} 사용 (raw 영역 누락 가능 — PHASE 2.5a enrich_external 미실행 의심)", file=sys.stderr)
+                args.input = fallback
         deals = safe_load_json(args.input)
 
     if not isinstance(deals, list):
