@@ -675,6 +675,24 @@ def main() -> int:
     if deleted:
         print(f"  오래된 리포트 {deleted}건 자동 삭제", file=sys.stderr)
 
+    # 5/7 신규 — 결과물 자동 열기 (Windows 기본 프로그램 = VS Code·메모장 등)
+    auto_open = settings.get("report", {}).get("auto_open", True)
+    if auto_open:
+        try:
+            abs_path = str(Path(output_path).resolve())
+            if sys.platform == "win32":
+                os.startfile(abs_path)
+            elif sys.platform == "darwin":
+                import subprocess
+                subprocess.Popen(["open", abs_path])
+            else:
+                import subprocess
+                subprocess.Popen(["xdg-open", abs_path])
+            print(f"  결과물 자동 열기 → {abs_path}", file=sys.stderr)
+        except Exception as e:
+            # silent fallback — 환경 미지원 시 경로만 출력
+            print(f"  (자동 열기 실패: {e} — 위 경로 직접 열어주세요)", file=sys.stderr)
+
     return 0
 
 
