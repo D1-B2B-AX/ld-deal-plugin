@@ -464,26 +464,14 @@ def render_t2_compact(deal: dict, rank: int, today: date) -> str:
     intent_signals = deal.get("intent_signals") or []
     signal_str = format_intent_signals(intent_signals) if intent_signals else "거래 의지 시그널 부재"
 
-    # grounding 영역 (T1과 동일 형식)
-    scoring = deal.get("scoring", {})
-    grounding_match = scoring.get("grounding_match")
-    grounding_str = ""
-    if grounding_match is True:
-        intent_llm = scoring.get("intent_category_llm", "")
-        intent_ld = scoring.get("intent_grounding_ld", "")
-        if intent_llm and intent_ld:
-            grounding_str = f"  [grounding ✓ LD:{intent_ld}=LLM:{intent_llm}]"
-    elif grounding_match is False:
-        grounding_str = "  ⚠️ grounding mismatch"
-
     out = []
     header = f"- **{rank}. {name}** ({customer}) — {amt} · {stage}"
     if dday:
         header += f" · {dday}"
     out.append(header)
 
-    # 메타·분류·grounding 한 줄
-    meta_line = f"  - 분류: {signal_str}{grounding_str}"
+    # 메타·분류 한 줄 (grounding은 badges에 이미 박힘 — 5/7 중복 정정)
+    meta_line = f"  - 분류: {signal_str}"
     if badges:
         meta_line += f"  {badges}"
     out.append(meta_line)
