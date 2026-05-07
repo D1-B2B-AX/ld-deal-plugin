@@ -289,14 +289,26 @@ def render_changes(changes_data) -> str:
 
 
 def compute_diff_vs_previous(scored_today: list, archive_dir: str, today_str: str) -> dict | None:
-    """직전 archive (오늘 제외) vs 오늘 phase3 비교 — 핵심 변화 영역만"""
-    files = sorted(glob.glob(os.path.join(archive_dir, "*.json")))
-    today_filename = f"{today_str}.json"
-    prev_files = [f for f in files if not f.endswith(today_filename)]
-    if not prev_files:
-        return None  # 첫 실행
+    """직전 회차 archive vs 오늘 phase3 비교 — 핵심 변화 영역만 (5/7 EOD 정정)
 
-    prev_path = prev_files[-1]
+    5/7 EOD 결함 정정: PHASE 4a가 archive 덮어쓰기 후 비교 시점에 *직전 영역 사라짐* → "첫 실행" 잘못 박힘.
+    해결: `_previous_run.json` 영역 우선 사용 (generate_md 시작 시점에 *현재 archive → _previous_run* 복사 박힘).
+    """
+    prev_run_path = os.path.join(archive_dir, "_previous_run.json")
+    prev_path = None
+
+    if os.path.exists(prev_run_path):
+        prev_path = prev_run_path
+    else:
+        # _previous_run.json 없으면 기존 흐름 fallback — files에서 오늘 제외 가장 최근
+        files = sorted(glob.glob(os.path.join(archive_dir, "*.json")))
+        today_filename = f"{today_str}.json"
+        prev_files = [f for f in files
+                      if not f.endswith(today_filename)
+                      and "_previous_run" not in os.path.basename(f)]
+        if not prev_files:
+            return None  # 첫 실행 — 비교 baseline X
+        prev_path = prev_files[-1]
     try:
         with open(prev_path, "r", encoding="utf-8") as f:
             prev_deals = json.load(f)
@@ -770,8 +782,27 @@ def main() -> int:
 
     changes_data = safe_load_json(args.changes) if args.changes else None
 
-    # 5/7 신규 — 이전 회차 대비 변화 (직전 archive vs 오늘 phase3)
+    # 5/7 EOD 정정 — _previous_run.json 흐름 박기 (PHASE 4a 순서 결함 정정)
+    # 기존: PHASE 4a에서 archive 덮어쓰기 → PHASE 4c 비교 시점에 *직전 영역 사라짐* → "첫 실행" 잘못 박힘
+    # 정정: generate_md 시작 시점에 *기존 today archive → _previous_run.json 복사* (Day 기준 비교 baseline 보존)
+    import shutil
     archive_dir = settings.get("report", {}).get("archive_dir", "archive")
+    Path(archive_dir).mkdir(parents=True, exist_ok=True)
+    today_archive_path = os.path.join(archive_dir, f"{today.strftime('%Y%m%d')}.json")
+    prev_run_path = os.path.join(archive_dir, "_previous_run.json")
+
+    # 1. _previous_run.json 갱신 — 기존 today_archive 영역을 _previous로 복사
+    if os.path.exists(today_archive_path):
+        # PHASE 4a가 박은 영역 (또는 이전 회차 박은 영역)을 _previous로 보존
+        shutil.copy(today_archive_path, prev_run_path)
+    elif not os.path.exists(prev_run_path):
+        # today archive 없음 + _previous도 없음 — 가장 최근 archive (어제 영역) → _previous 복사
+        files = sorted(glob.glob(os.path.join(archive_dir, "*.json")))
+        files = [f for f in files if "_previous_run" not in os.path.basename(f)]
+        if files:
+            shutil.copy(files[-1], prev_run_path)
+
+    # 2. 비교 — _previous_run vs 오늘 phase3
     diff_vs_prev = compute_diff_vs_previous(scored, archive_dir, today.strftime("%Y%m%d"))
 
     # 섹션 조립 (직전 비교는 포트폴리오 바로 아래에 박힘 — 김민선 시연 피드백)
@@ -808,6 +839,15 @@ def main() -> int:
     print(f"  딜 {len(scored)}건 / 길이 {len(md)} chars", file=sys.stderr)
     if deleted:
         print(f"  오래된 리포트 {deleted}건 자동 삭제", file=sys.stderr)
+
+    # 5/7 EOD 신규 — 오늘 scored_deals → archive 박기 (덮어쓰기, 다음 회차 _previous_run baseline)
+    # PHASE 4a가 박은 raw 영역 archive를 *scored_deals (점수·tier 박힌 영역)*로 덮어쓰기 → 다음 회차 비교 정합
+    try:
+        with open(today_archive_path, "w", encoding="utf-8") as f:
+            json.dump(scored, f, ensure_ascii=False, indent=2)
+        print(f"  archive 갱신 → {today_archive_path}", file=sys.stderr)
+    except Exception as e:
+        print(f"  (archive 갱신 실패: {e})", file=sys.stderr)
 
     # 5/7 신규 — 결과물 자동 열기 (Windows 기본 프로그램 = VS Code·메모장 등)
     auto_open = settings.get("report", {}).get("auto_open", True)
