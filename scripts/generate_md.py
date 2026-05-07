@@ -284,6 +284,135 @@ def render_changes(changes_data) -> str:
 
 
 # ════════════════════════════════════════════
+# 섹션 2.5: 🔄 이전 회차 대비 변화 (5/7 신규 — 김민선 시연 피드백)
+# ════════════════════════════════════════════
+
+
+def compute_diff_vs_previous(scored_today: list, archive_dir: str, today_str: str) -> dict | None:
+    """직전 archive (오늘 제외) vs 오늘 phase3 비교 — 핵심 변화 영역만"""
+    files = sorted(glob.glob(os.path.join(archive_dir, "*.json")))
+    today_filename = f"{today_str}.json"
+    prev_files = [f for f in files if not f.endswith(today_filename)]
+    if not prev_files:
+        return None  # 첫 실행
+
+    prev_path = prev_files[-1]
+    try:
+        with open(prev_path, "r", encoding="utf-8") as f:
+            prev_deals = json.load(f)
+    except Exception:
+        return None
+
+    # 리스트 직접 박힌 영역 또는 dict 안 deals 박힌 영역 처리
+    if isinstance(prev_deals, dict):
+        prev_deals = prev_deals.get("deals", [])
+
+    prev_map = {(d.get("deal_id") or d.get("id")): d for d in prev_deals if (d.get("deal_id") or d.get("id"))}
+    curr_map = {(d.get("deal_id") or d.get("id")): d for d in scored_today if (d.get("deal_id") or d.get("id"))}
+
+    prev_ids = set(prev_map.keys())
+    curr_ids = set(curr_map.keys())
+
+    diff = {
+        "previous_date": Path(prev_path).stem,
+        "added": [],
+        "removed": [],
+        "tier_changed": [],
+        "score_changed_big": [],
+    }
+
+    # 신규 진입
+    for did in curr_ids - prev_ids:
+        d = curr_map[did]
+        diff["added"].append({
+            "name": d.get("customer_name") or d.get("deal_name", ""),
+            "tier": d.get("scoring", {}).get("tier"),
+        })
+
+    # 이탈
+    for did in prev_ids - curr_ids:
+        d = prev_map[did]
+        diff["removed"].append({
+            "name": d.get("customer_name") or d.get("deal_name", ""),
+        })
+
+    # 양쪽 모두 박힌 딜 — 티어 변경·점수 큰 변동
+    for did in curr_ids & prev_ids:
+        prev_d = prev_map[did]
+        curr_d = curr_map[did]
+        prev_tier = prev_d.get("scoring", {}).get("tier")
+        curr_tier = curr_d.get("scoring", {}).get("tier")
+        prev_score = prev_d.get("scoring", {}).get("total", 0)
+        curr_score = curr_d.get("scoring", {}).get("total", 0)
+        delta = curr_score - prev_score
+
+        if prev_tier != curr_tier and prev_tier is not None and curr_tier is not None:
+            diff["tier_changed"].append({
+                "name": curr_d.get("customer_name") or curr_d.get("deal_name", ""),
+                "from": prev_tier,
+                "to": curr_tier,
+                "score_delta": delta,
+            })
+        elif abs(delta) >= 10:
+            diff["score_changed_big"].append({
+                "name": curr_d.get("customer_name") or curr_d.get("deal_name", ""),
+                "from": prev_score,
+                "to": curr_score,
+                "delta": delta,
+            })
+
+    return diff
+
+
+def render_diff_vs_previous(diff: dict | None) -> str:
+    """이전 회차 대비 변화 — 핵심 4~5줄 (5/7 김민선 시연 피드백 — 상단 노출)"""
+    lines = ["## 🔄 이전 회차 대비 변화", ""]
+
+    if not diff:
+        lines.append("_첫 실행 — 비교할 이전 데이터 없음_")
+        lines.append("")
+        return "\n".join(lines)
+
+    parts = []
+
+    # 티어 변경 (가장 시그널 강함)
+    for tc in diff.get("tier_changed", []):
+        # T1=1, T3=3 — 작을수록 좋음
+        arrow = "📈" if tc["to"] < tc["from"] else "🔻"
+        delta_str = f" ({tc['score_delta']:+d}점)" if tc["score_delta"] else ""
+        parts.append(f"{arrow} **티어 변경**: {tc['name']} T{tc['from']} → T{tc['to']}{delta_str}")
+
+    # 점수 큰 변동 (±10점+)
+    for sc in diff.get("score_changed_big", []):
+        arrow = "📈" if sc["delta"] > 0 else "📉"
+        parts.append(f"{arrow} **점수 변동**: {sc['name']} {sc['from']} → {sc['to']} ({sc['delta']:+d}점)")
+
+    # 신규 진입
+    if diff.get("added"):
+        names = ", ".join(a["name"] for a in diff["added"][:3])
+        more = f" 외 {len(diff['added'])-3}건" if len(diff["added"]) > 3 else ""
+        parts.append(f"🆕 **신규 진입**: {len(diff['added'])}건 ({names}{more})")
+
+    # 이탈
+    if diff.get("removed"):
+        names = ", ".join(r["name"] for r in diff["removed"][:3])
+        more = f" 외 {len(diff['removed'])-3}건" if len(diff["removed"]) > 3 else ""
+        parts.append(f"🚪 **이탈**: {len(diff['removed'])}건 ({names}{more})")
+
+    prev_date = diff.get("previous_date", "미상")
+    if not parts:
+        lines.append(f"**변화 없음** _(이전 회차: {prev_date})_")
+    else:
+        lines.append(f"_이전 회차: {prev_date}_")
+        lines.append("")
+        for p in parts:
+            lines.append(f"- {p}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ════════════════════════════════════════════
 # 섹션 4: 🔴🟠⚪ 티어 본문 (4/30 갱신 — b+a 결합)
 # ════════════════════════════════════════════
 
@@ -641,10 +770,15 @@ def main() -> int:
 
     changes_data = safe_load_json(args.changes) if args.changes else None
 
-    # 섹션 조립
+    # 5/7 신규 — 이전 회차 대비 변화 (직전 archive vs 오늘 phase3)
+    archive_dir = settings.get("report", {}).get("archive_dir", "archive")
+    diff_vs_prev = compute_diff_vs_previous(scored, archive_dir, today.strftime("%Y%m%d"))
+
+    # 섹션 조립 (직전 비교는 포트폴리오 바로 아래에 박힘 — 김민선 시연 피드백)
     sections = [
         render_header(target_ld_name, today),
         render_portfolio(scored, today),
+        render_diff_vs_previous(diff_vs_prev),
         render_changes(changes_data),
         render_tier_section(scored, today),
         render_meetings(scored, today),
