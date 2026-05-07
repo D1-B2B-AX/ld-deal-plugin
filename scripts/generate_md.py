@@ -448,24 +448,61 @@ def format_deadline_source(source: str) -> str:
 
 
 def render_t2_compact(deal: dict, rank: int, today: date) -> str:
-    """T2 한 줄 + 분류 (어떤 시그널·왜 T2)"""
+    """T2 — 메타·분류·grounding + 왜 T2 reason + ⚡ 추천 액션 (5/7 갱신, 점수 표는 T1만)
+
+    5/7 김민선 시연 피드백 — T2부터 사유·액션 부재로 결과 빈약함 발생. T1 0건·T2 다수 케이스 대응.
+    """
     name = deal.get("deal_name", "")
     customer = deal.get("customer_name", "")
     amt = format_amount(deal.get("deal_amount"))
     stage = deal.get("pipeline_stage_name") or "단계 미입력"
     dday = format_dday(days_between(deal.get("deadline"), today))
     badges = build_badges(deal)
+    reason = deal.get("reason") or ""
+    next_action = deal.get("next_action") or ""
 
     intent_signals = deal.get("intent_signals") or []
     signal_str = format_intent_signals(intent_signals) if intent_signals else "거래 의지 시그널 부재"
 
-    line = f"- **{rank}. {name}** ({customer}) — {amt} · {stage}"
+    # grounding 영역 (T1과 동일 형식)
+    scoring = deal.get("scoring", {})
+    grounding_match = scoring.get("grounding_match")
+    grounding_str = ""
+    if grounding_match is True:
+        intent_llm = scoring.get("intent_category_llm", "")
+        intent_ld = scoring.get("intent_grounding_ld", "")
+        if intent_llm and intent_ld:
+            grounding_str = f"  [grounding ✓ LD:{intent_ld}=LLM:{intent_llm}]"
+    elif grounding_match is False:
+        grounding_str = "  ⚠️ grounding mismatch"
+
+    out = []
+    header = f"- **{rank}. {name}** ({customer}) — {amt} · {stage}"
     if dday:
-        line += f" · {dday}"
-    line += f"\n  - 분류: {signal_str}"
+        header += f" · {dday}"
+    out.append(header)
+
+    # 메타·분류·grounding 한 줄
+    meta_line = f"  - 분류: {signal_str}{grounding_str}"
     if badges:
-        line += f"  {badges}"
-    return line
+        meta_line += f"  {badges}"
+    out.append(meta_line)
+
+    # 왜 T2 reason (5/7 신규 — 김민선 시연 피드백)
+    if reason and not reason.startswith("_LLM"):
+        reason_clean = reason.replace("\n", " ").strip()
+        if len(reason_clean) > 220:
+            reason_clean = reason_clean[:220] + "..."
+        out.append(f"  - 왜 T2: {reason_clean}")
+
+    # ⚡ 추천 액션 (5/7 신규 — 김민선 시연 피드백)
+    if next_action and not next_action.startswith("_LLM"):
+        action_clean = next_action.replace("\n", " ").strip()
+        if len(action_clean) > 220:
+            action_clean = action_clean[:220] + "..."
+        out.append(f"  - ⚡ 추천 액션: {action_clean}")
+
+    return "\n".join(out)
 
 
 def render_t3_line(deal: dict, today: date) -> str:
