@@ -124,14 +124,17 @@ STEP 5: 딜별 JSON 구조화
 **보강 쿼리 2개** (base와 합치면 총 3회 호출):
 
 ```
-[lead-root-1] "({고객사1} OR {고객사2} OR ...) (Lead OR lead OR @{owner_name})"
+[lead-root-1] "({고객사1} OR {고객사2} OR ...) (Lead OR lead OR @{owner_name}) after:{slack_intent_search_after}"
               → in:#b2b_lead, in:#b2b_2팀_견적제안 등 lead 배분 채널
-[lead-root-2] "from:@{partner_or_team_lead} ({고객사1} OR ...)"
+[lead-root-2] "from:@{partner_or_team_lead} ({고객사1} OR ...) after:{slack_intent_search_after}"
               → 팀장·파트장이 직접 쓴 lead 배분 메시지 추적 (settings에 명시 시)
 ```
 
 - **목적**: hit한 root 메시지의 `thread_ts`만 수집 → STEP 2.5에서 thread 전체 read
 - **중복 처리**: base 결과와 thread_ts 기준 dedupe
+- **⭐ 시간 필터 (5/7 신규 — 정밀화)**: lead-root 쿼리에 `after:{slack_intent_search_after}` 시간 modifier 강제 적용. settings 값(예: `after:2026-01-01`)을 *쿼리 문자열에 직접 박음*.
+  - **왜 필요?** 옵션 A 분리 안의 *2026-01-01부터 영업 사이클 raw 회수* 룰이 *시간 필터 없이는 슬랙 MCP 기본 14일 한정에 걸려* 작동 X. 5/7 검증에서 신세계 4/1 lead thread가 회수 안 된 직접 원인 (작업일지 5/7 §10).
+  - **base 쿼리(5번 점수 영역)는 시간 필터 X 그대로 유지** — 14일 한정이 그대로 *최근 활동* 측정에 정합.
 
 ### ⚠️ 쿼리 길이·문법 검증 (Fallback 설계)
 
@@ -349,8 +352,20 @@ B2B 영업팀 슬랙 운영 패턴:
   query: "{고객사명} from:@{owner_name}" 또는 "{고객사명} @{owner_name}"
          또는 lead-root 보강 쿼리 (STEP 1 참조)
   channel_types: "public_channel,private_channel"   ← 5/6 신규 (DM 차단)
-  (검색 기간은 슬랙 검색 문법 before/after로 조합)
 ```
+
+**⭐ 시간 필터 — 두 영역 분리 (5/7 정밀화)**:
+
+옵션 A 분리 안의 *5번 점수 14일 / 6번 거래 의지 LLM raw 2026-01-01부터* 룰을 *MCP 쿼리 문자열에 직접 박음*:
+
+| 영역 | query 시간 필터 | settings 키 |
+|---|---|---|
+| **base 쿼리 (5번 점수)** | 시간 필터 미박힘 (슬랙 MCP 기본 14일 한정 그대로) | `slack_recent_window_days: 14` |
+| **lead-root 쿼리 (6번 LLM raw)** | `after:{slack_intent_search_after}` 강제 박음 (예: `after:2026-01-01`) | `slack_intent_search_after: "2026-01-01"` |
+
+**왜 lead-root에 명시 박나?** — settings 키는 박혀있는데 *MCP 호출 query에 시간 modifier가 안 들어가면* 슬랙 MCP가 *기본 14일 한정*만 회수 → lead 배분 thread root(영업 사이클 시작 시점, 30~60일+ 전 빈번)가 검색 자체에 안 잡힘. 5/7 검증에서 신세계 4/1 lead thread 0건 회수의 직접 원인.
+
+**`channel_types` 차단 룰 (2026-05-06 신규)**:
 
 **`channel_types` 차단 룰 (2026-05-06 신규)**:
 - 기본값 `"public_channel,private_channel,mpim,im"` (전체) → **`"public_channel,private_channel"`로 강제 제한**
@@ -380,7 +395,7 @@ B2B 영업팀 슬랙 운영 패턴:
 
 | 항목 | 내용 |
 |------|------|
-| 검색 기간 | 최근 2주 고정 (캘린더와 동일) |
+| 검색 기간 (5/7 정정) | **두 영역 분리** — base 쿼리(5번 점수)는 14일 한정 / lead-root 쿼리(6번 LLM raw)는 `after:{slack_intent_search_after}` 시간 필터 박음 (예: 2026-01-01부터). MCP query 문자열에 직접 명시 필수 — 안 박으면 슬랙 MCP 기본 14일에 걸려 옵션 A 룰 작동 X. |
 | 노이즈 | 고객사명 + 담당자 필터로 최소화. 동일 고객사 다른 딜 구분 불가 (중복 허용) |
 | DM 차단 (5/6 갱신) | **DM(`im`·`mpim`) 자동 차단** — 답지·내부 메모 누출 위험 (4/30 사고). OM → LD DM의 딜 업데이트는 추후 v2 영역에서 *별도 채널 추출 도구*로 안전 회수 검토. |
 | 비공개 채널 | 멤버인 경우만 가능 |
