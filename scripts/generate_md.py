@@ -782,25 +782,32 @@ def main() -> int:
 
     changes_data = safe_load_json(args.changes) if args.changes else None
 
-    # 5/7 EOD 정정 — _previous_run.json 흐름 박기 (PHASE 4a 순서 결함 정정)
-    # 기존: PHASE 4a에서 archive 덮어쓰기 → PHASE 4c 비교 시점에 *직전 영역 사라짐* → "첫 실행" 잘못 박힘
-    # 정정: generate_md 시작 시점에 *기존 today archive → _previous_run.json 복사* (Day 기준 비교 baseline 보존)
+    # 5/7 EOD 2차 정정 — _previous_run.json 흐름 *오늘 mtime 룰* 박기
+    # 1차 정정 결함: PHASE 4a가 today_archive 덮어쓰기 후 generate_md가 *오늘 영역으로 _previous 갱신* → prev = curr → "변화 없음" 잘못 박힘
+    # 2차 정정: _previous_run mtime이 *오늘이면 갱신 X* (오늘 첫 실행 시점에 박힌 영역 보존). 어제 영역 → _previous 복사.
     import shutil
     archive_dir = settings.get("report", {}).get("archive_dir", "archive")
     Path(archive_dir).mkdir(parents=True, exist_ok=True)
     today_archive_path = os.path.join(archive_dir, f"{today.strftime('%Y%m%d')}.json")
     prev_run_path = os.path.join(archive_dir, "_previous_run.json")
+    today_filename = f"{today.strftime('%Y%m%d')}.json"
 
-    # 1. _previous_run.json 갱신 — 기존 today_archive 영역을 _previous로 복사
-    if os.path.exists(today_archive_path):
-        # PHASE 4a가 박은 영역 (또는 이전 회차 박은 영역)을 _previous로 보존
-        shutil.copy(today_archive_path, prev_run_path)
-    elif not os.path.exists(prev_run_path):
-        # today archive 없음 + _previous도 없음 — 가장 최근 archive (어제 영역) → _previous 복사
+    # 1. _previous_run.json 갱신 룰 — 오늘 mtime이면 갱신 X (이미 오늘 첫 실행 시점 영역 박힘)
+    should_update_prev = True
+    if os.path.exists(prev_run_path):
+        prev_mtime_date = datetime.fromtimestamp(os.path.getmtime(prev_run_path)).date()
+        if prev_mtime_date == today:
+            should_update_prev = False  # 오늘 이미 박힘 — 그대로 두기 (오늘 첫 실행 시 어제 영역으로 박힌 baseline 보존)
+
+    if should_update_prev:
+        # 오늘 첫 실행 시점 — *오늘 archive 제외 가장 최근* 영역을 _previous로 복사
         files = sorted(glob.glob(os.path.join(archive_dir, "*.json")))
-        files = [f for f in files if "_previous_run" not in os.path.basename(f)]
+        files = [f for f in files
+                 if not f.endswith(today_filename)
+                 and "_previous_run" not in os.path.basename(f)]
         if files:
             shutil.copy(files[-1], prev_run_path)
+        # 어제 영역 X (clone판 첫 실행 등) → _previous 그대로 두기 (없으면 비교 시 "첫 실행" 박힘)
 
     # 2. 비교 — _previous_run vs 오늘 phase3
     diff_vs_prev = compute_diff_vs_previous(scored, archive_dir, today.strftime("%Y%m%d"))
