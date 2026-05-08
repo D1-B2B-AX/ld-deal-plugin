@@ -826,7 +826,7 @@ def main() -> int:
     md = "\n".join(s for s in sections if s)
 
     # 출력
-    output_path = args.output or f"outputs/summary_report_{today.strftime('%Y%m%d')}.md"
+    output_path = args.output or f"outputs/summary_report_{today.strftime('%Y%m%d_%H%M')}.md"
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(output_path).write_text(md, encoding="utf-8")
 
